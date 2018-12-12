@@ -99,7 +99,14 @@ function _menu_overview_tree_form($tree) {
       $mlid = 'mlid:' . $item['mlid'];
       $form[$mlid]['#item'] = $item;
       $form[$mlid]['#attributes'] = $item['hidden'] ? array('class' => array('menu-disabled')) : array('class' => array('menu-enabled'));
-      $form[$mlid]['title']['#markup'] = l($item['title'], $item['href'], $item['localized_options']) . ($item['hidden'] ? ' (' . t('disabled') . ')' : '');
+      $form[$mlid]['title']['#markup'] = l($item['title'], $item['href'], $item['localized_options']);
+      if ($item['hidden']) {
+        $form[$mlid]['title']['#markup'] .= ' (' . t('disabled') . ')';
+      }
+      elseif ($item['link_path'] == 'user' && $item['module'] == 'system') {
+        $form[$mlid]['title']['#markup'] .= ' (' . t('logged in users only') . ')';
+      }
+
       $form[$mlid]['hidden'] = array(
         '#type' => 'checkbox',
         '#title' => t('Enable @title menu link', array('@title' => $item['title'])),
@@ -274,6 +281,7 @@ function menu_edit_item($form, &$form_state, $type, $item, $menu) {
   $form['link_title'] = array(
     '#type' => 'textfield',
     '#title' => t('Menu link title'),
+    '#maxlength' => 255,
     '#default_value' => $item['link_title'],
     '#description' => t('The text to be used for this link in the menu.'),
     '#required' => TRUE,
@@ -298,7 +306,7 @@ function menu_edit_item($form, &$form_state, $type, $item, $menu) {
       '#title' => t('Path'),
       '#maxlength' => 255,
       '#default_value' => $path,
-      '#description' => t('The path for this menu link. This can be an internal Drupal path such as %add-node or an external URL such as %drupal. Enter %front to link to the front page.', array('%front' => '<front>', '%add-node' => 'node/add', '%drupal' => 'http://drupal.org')),
+      '#description' => t('The path for this menu link. This can be an internal path such as %add-node or an external URL such as %example. Enter %front to link to the front page.', array('%front' => '<front>', '%add-node' => 'node/add', '%example' => 'http://example.com')),
       '#required' => TRUE,
     );
     $form['actions']['delete'] = array(
@@ -388,7 +396,7 @@ function menu_edit_item_validate($form, &$form_state) {
     else {
       unset($item['options']['fragment']);
     }
-    if ($item['link_path'] != $parsed_link['path']) {
+    if (isset($parsed_link['path']) && $item['link_path'] != $parsed_link['path']) {
       $item['link_path'] = $parsed_link['path'];
     }
   }
@@ -463,7 +471,6 @@ function menu_edit_menu($form, &$form_state, $type, $menu = array()) {
     '#machine_name' => array(
       'exists' => 'menu_edit_menu_name_exists',
       'source' => array('title'),
-      'label' => t('URL path'),
       'replace_pattern' => '[^a-z0-9-]+',
       'replace' => '-',
     ),
@@ -506,8 +513,7 @@ function menu_delete_menu_page($menu) {
   // System-defined menus may not be deleted.
   $system_menus = menu_list_system_menus();
   if (isset($system_menus[$menu['menu_name']])) {
-    drupal_access_denied();
-    return;
+    return MENU_ACCESS_DENIED;
   }
   return drupal_get_form('menu_delete_menu_confirm', $menu);
 }
@@ -616,8 +622,7 @@ function menu_item_delete_page($item) {
   // Links defined via hook_menu may not be deleted. Updated items are an
   // exception, as they can be broken.
   if ($item['module'] == 'system' && !$item['updated']) {
-    drupal_access_denied();
-    return;
+    return MENU_ACCESS_DENIED;
   }
   return drupal_get_form('menu_item_delete_form', $item);
 }
